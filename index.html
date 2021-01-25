@@ -1,0 +1,953 @@
+<!doctype html>
+<html>
+
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>OSE SC</title>
+
+    <meta name="description"
+          content="(Approximate) Bayesian Parameter Inference">
+    <meta name="author" content="Yannik Schaelte">
+
+    <link rel="stylesheet" href="reveal.js/dist/reset.css">
+    <link rel="stylesheet" href="reveal.js/dist/reveal.css">
+    <link rel="stylesheet" href="reveal.js/dist/theme/white.css" id="theme">
+
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="reveal.js/plugin/highlight/monokai.css"
+          id="highlight-theme">
+
+    <link rel="stylesheet" href="ystyle.css">
+</head>
+
+<!--
+Systems Biology
+Modeling
+Forward Problem and Inverse Problem
+Optimization
+Derivatives
+Uncertainty Analysis (Asymptotic, Profile Likelihoods, Sampling)
+Model selection (AIC, BIC, Fw Sel & Bw El, Penalization), Residual analysis
+Tools
+Stochastic Models -- More details on ABC
+-->
+
+
+<body>
+<div class="reveal">
+    <div class="slides" id="id_slides">
+
+
+        <section>
+            <img src="img/front.svg" alt="Front page"/>
+        </section>
+
+
+        <section>
+            <div class="r-stack">
+                <img src="img/cb0.svg"/>
+                <img class="fragment" src="img/cb1.svg"/>
+                <img class="fragment" src="img/cb2.svg"/>
+                <img class="fragment" src="img/cb3.svg"/>
+            </div>
+        </section>
+
+
+        <section data-background="#e4003a" data-background-transition="zoom">
+            <h1>Modeling</h1>
+        </section>
+
+
+        <!--<section>
+            <h2>Modeling</h2>
+            <div class="r-stack" width="50%">
+                <img class="fragment" width="50%" src="img/models1.svg"/>
+                <img class="fragment" width="50%" src="img/models2.svg"/>
+                <img class="fragment" width="50%" src="img/models3.svg"/>
+                <img class="fragment" width="50%" src="img/models4.svg"/>
+                <img class="fragment" width="50%" src="img/models5.svg"/>
+                <img class="fragment" width="50%" src="img/models6.svg"/>
+            </div>
+        </section>-->
+
+
+        <section data-transition="slide-in fade-out">
+            biological processes are complicated<br/>
+            <img src="img/cancer_model.svg" class="r-stretch"/>
+        </section>
+
+
+        <section data-transition="fade-in slide-out">
+            <h2>Model types</h2>
+            <img src="img/multiscale_models.svg" class="stretch"
+                 alt="Multiscale models"/>
+            <small>based on Hasenauer et al., J. Coup. Sys. and Mult. Dyn.
+                2015</small>
+        </section>
+
+
+        <section>
+            <blockquote>
+                A mathematical model is a <b>representation</b> of the
+                <b>essential aspects</b> of a system [...] which presents
+                <b>knowledge</b> of that system in <b>usable form</b>.
+            </blockquote>
+            <div style="text-align: right"><small>Pieter Eykhoff 1974</small>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>The inverse problem</h2>
+            <div class="r-stack">
+                <img src="img/fw_bw_problem0.svg"/>
+                <img class="fragment" src="img/fw_bw_problem1.svg"/>
+                <img class="fragment" src="img/fw_bw_problem2.svg"/>
+            </div>
+        </section>
+
+
+        <!--<section>
+            <h2>Systems Biology Loop</h2>
+            <div class="r-stack">
+                <img src="img/parameter_estimation_1.svg"/>
+                <img class="fragment" src="img/parameter_estimation_2.svg"/>
+                <img class="fragment" src="img/parameter_estimation_3.svg"/>
+                <img class="fragment" src="img/parameter_estimation_4.svg"/>
+            </div>
+        </section>-->
+
+
+        <section data-background="#e4003a" data-background-transition="zoom">
+            <h1>Parameter inference</h1>
+        </section>
+
+
+        <section>
+            <h2>Basic idea</h2>
+            <div class="r-stack">
+                <img src="img/inference_basics_0.svg"/>
+                <img class="fragment" src="img/inference_basics_1.svg"/>
+                <img class="fragment" src="img/inference_basics_2.svg"/>
+                <img class="fragment" src="img/inference_basics_3.svg"/>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Basic idea</h2>
+            <div style="text-align: left">
+                e.g. an ODE model: <br/>
+                states: &emsp;&emsp; $\dot x (t, \theta) = f(t, x, \theta)$,
+                $x(t_0, \theta) = x_0(\theta) \in \mathbb{R}^{n_x}$,
+                <br/>
+                observables: &emsp;&emsp; $y(t, \theta) = h(x(t, \theta), \theta) \in \mathbb{R}^{n_y}$,
+                <br/>
+                measurements: &emsp;&emsp; $\bar y_{ik} \sim \mathcal{N}(y_k(t_i,\theta), \sigma^2_{ik}(\theta) \in \mathbb{R}^{n_y}$
+                <br/><br/>
+                likelihood function: &emsp;
+                $p(D|\theta) = \prod_{ik}\frac{1}{\sqrt{2\pi}\sigma_{ik}(\theta)}
+                \exp\left[-\frac{1}{2}
+                \left(\frac{\bar y_{ik} - y_k(t_i,\theta)}{\sigma_{ik}(\theta)}\right)^2\right]$
+                <br/><br/>
+                objective function:
+                $J(\theta) := - \log p(D|\theta) =
+                \frac{1}{2}\sum_{ik}\left[\log(2\pi\sigma_{ik}^2(\theta))
+                + \left(\frac{\bar y_{ik} - y_k(t_i,\theta)}{\sigma_{ik}(\theta)}\right)^2\right]
+                \overset{!}{\rightarrow}\min_{\theta\in\Theta}$
+
+                <br/><br/>
+                if prior knowledge is available: prior $p(\theta)$,<br/>
+                $J(\theta) := -\log p(D|\theta) - \log p(\theta)$
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Optimization</h2>
+            find the best point estimate (MLE)<br/>
+            <img src="img/multistart4.svg" width="60%"/>
+            <ul>
+                <li>local vs global or multistart</li>
+                <li>derivative-free vs derivative-based</li>
+                <li>higher-order information</li>
+            </ul>
+        </section>
+
+
+        <section>
+            <h2>Hierarchical optimization</h2>
+            <img src="img/hier_opt.png" class="r-stretch"/>
+            <small>Loos, Carolin, et al.
+                "Hierarchical optimization for the efficient parametrization
+                of ODE models." Bioinformatics 2018.</small>
+        </section>
+
+
+        <section>
+            <section>
+                <h2>Computing gradients $\nabla J(\theta)$</h2>
+                $$\nabla J(\theta) = \sum_{i=1}^{n_t}\left[\frac{\partial J_i}{\partial
+    y}(y(t_i,\theta),\theta)\color{red}{\frac{dy}{d\theta}(t_i,\theta)} + \frac{\partial
+    J_i}{\partial \theta}(y(t_i,\theta),\theta)\right]$$
+                <ul>
+                    <li>finite differences: $\delta_l J(\theta) = (J(\theta + \delta e_l) - J(\theta)) / \delta$</li>
+                    <li>forward sensitivities: calculate $\frac{dx}{d\theta}$ via additional ODEs</li>
+                    <li>adjoint sensitivities: circumvent $\frac{dx}{d\theta}$ via a cheaper adjoint state</li>
+                </ul>
+                <img src="img/fd_fsa_asa.svg" class="r-stretch"/>
+            </section>
+
+
+            <section>
+                <h3>finite differences</h3>
+                $$\delta^{h}_lJ(\theta) = \frac{J(\theta + \frac 1 2h\cdot e_l)
+                    - J(\theta - \frac 1 2h\cdot e_l)}{h}$$
+                <img src="img/Finite_difference_method.svg" class="r-stretch"/><br/>
+                <ul>
+                    <li>inefficient: $O(n_xn_\theta)$</li>
+                    <li>numerically unstable</li>
+                </ul>
+            </section>
+
+
+            <section>
+                <h3>forward sensitivities</h3>
+                <div style="text-align: left">
+                    $$\nabla J(\theta) = \sum_{i=1}^{n_t}\left[\frac{\partial J_i}{\partial
+    y}(y(t_i,\theta),\theta)\frac{dy}{d\theta}(t_i,\theta) + \frac{\partial
+    J_i}{\partial \theta}(y(t_i,\theta),\theta)\right]$$
+
+                where, with $s^x = \frac{dx}{d\theta}$, the extended ODE<br/>
+                $\dot x = f, x(0) = x_0$,<br/>
+                $\dot s^x_l = \frac{\partial f}{\partial x}s^x_l + \frac{\partial f}{\partial
+    \theta_l}, s^x_l(0) = \frac{\partial x_0}{\partial\theta_l}, l=1,\ldots,n_\theta$<br/>
+                allows us to calculate $\frac{dy}{d\theta}$
+                </div><br/>
+                <ul>
+                    <li>inefficient: $O(n_xn_\theta)$</li>
+                    <li>numerically robust</li>
+                    <li>can exploit ODE structure</li>
+                </ul>
+            </section>
+
+
+            <section>
+                <h3>adjoint sensitivities</h3>
+                Idea: introduce an <b>adjoint state</b> $p\in\mathbb{R}^{n_x}$ such that
+                    $$\nabla J(\theta) = \sum_{i=1}^{n_t}\left[\frac{\partial J_i}{\partial\theta}
+    + \frac{\partial J_i}{\partial y}\frac{\partial h}{\partial\theta}\right] -
+    p(t_0)^T\frac{d x_0}{d\theta}(\theta) - \int_{t_0}^{t_{n_t}}p^T\frac{\partial
+    f}{\partial\theta}d\tau$$
+                without the annoying $\frac{dx}{d\theta}$!<br/>
+                $p$ is uniquely defined by the backward ODE
+                $$\dot p = -\frac{\partial f}{\partial x}^Tp\quad\text{with initial
+    condition}\quad p(t_{i}) = \lim_{t\searrow t_{i}}p(t) - \left(\frac{\partial
+    J_{i}}{\partial y}\frac{\partial h}{\partial x}\right)^T$$
+                <ul>
+                    <li>in practice nearly $O(n_x)$ (2 ODEs and a simple quadrature)</li>
+                    <li>more involved implementation</li>
+                    <li>no least-squares optimizers applicable</li>
+                </ul>
+            </section>
+        </section>
+
+
+        <section>
+            <img src="img/amici_logo_text.png" width="10%"/><br/>
+            <a href="https://github.com/amici-dev/amici">github.com/amici-dev/amici</a><br/>
+            high-performance ODE simulation and sensitivity calculation
+            <img src="img/amici_workflow.svg" class="r-stretch"/>
+        </section>
+
+
+        <section>
+            <h1>Uncertainty analysis</h1>
+        </section>
+
+
+        <section>
+            <h2>Profile likelihoods</h2>
+            <img src="img/profiles.svg" class="r-stretch"/>
+            <ul>
+                <li>profile likelihoods defined as $\text{PL}_{g(\theta)}(c) = \max_{\theta\in g^{-1}(c)}p(D|\theta)$</li>
+                <li>confidence intervals derived from likelihood-ratio tests</li>
+                <li>profiles calculated via optimization / integration / local approximation</li>
+            </ul>
+        </section>
+
+
+        <section>
+            <h2>Bayesian inference</h2>
+            <img width="600px" src="img/bayestheorem.svg"/>
+        </section>
+
+        <section>
+            <h2>Posterior analysis</h2>
+            <div style="text-align: left">
+                Often, we are interested in integrals of the posterior, e.g.
+                <ul>
+                    <li>Posterior mean of a parameter: $\mathbb{E}(\theta|D) = \int \theta p(\theta|D)d\theta$</li>
+                    <li>Posterior variance (uncertainty): $\mathbb{V}(\theta|D) = \mathbb{E}(\theta^2|D) - \mathbb{E}(\theta|D)^2$</li>
+                    <li>Credible intervals: $\mathbb{P}(\theta\in[l,u]|D) = \int_l^u p(\theta|D)d\theta$</li>
+                    <li>Marginals: $p(\theta_1|D) = \int p(\theta|D)d\theta_2\cdots d\theta_n$</li>
+                </ul><br/><br/>
+                Monte-Carlo sampling can be used to approximate expectations:
+                $$\mathbb{E}(f(\theta)|D) \overset{n\rightarrow\infty}{\approx} \frac{1}{n}\sum_if(\theta_i)$$
+                with $\theta_i \overset{\text{iid}}{\sim} p(\theta|D)$.
+            </div>
+        </section>
+
+
+        <section>
+            <h2>How to sample from a distribution?</h2>
+            <img src="img/sampling.svg" class="r-stretch"/>
+            <div style="text-align: left">
+                <ul>
+                    <li>Simple distributions: CDF inversion $F_{p(\theta|D)}^{-1}(U[0,1])$</li>
+                    <li>Rejection sampling: $\theta\sim q(\theta)$, accept if $U[0,1] < p(\theta|D)/(Mq(\theta))$</li>
+                    <li>Importance sampling: $\mathbb{E}_{p(\theta|D)}(f) = \int f(\theta)\frac{p(\theta|D)}{q(\theta)}q(\theta)d\theta$</li>
+                </ul><br/><br/>
+                does not really scale well to high-dimensional distributions ...
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Markov-Chain Monte-Carlo (MCMC)</h2>
+            idea: instead of randomly drawing iid samples, evolve samples via
+            small perturbations to what was already observed<br/>
+            <img src="img/mcmc.svg" width="40%"/>
+            <div class="r-frame" style="text-align: left">
+                until chain long enough:<br/>
+                <ol>
+                    <li>propose $\theta \sim q(\theta|\theta_i)$</li>
+                    <li>if $U[0,1] < \min\left(1,\frac{p(\theta|D)q(\theta|\theta_i)}{p(\theta_i|D)q(\theta_i|\theta)}\right)$,
+                    then $\theta_{i+1}=\theta$, else $\theta_{i+1} = \theta_i$</li>
+                </ol>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Markov-Chain Monte-Carlo (MCMC)</h2>
+
+            <ul>
+                <li>More refined updates (Hamiltonian Monte-Carlo, NUTS, ...)</li>
+                <li>Adapt to problem structure</li>
+                <li>Parallel Tempering</li>
+            </ul>
+            <img src="img/sampling_results.svg" class="r-stretch"/>
+        </section>
+
+
+        <section>
+            <h2>Further topics</h2>
+            <ul>
+                <li>Outlier control</li>
+                <li>Model selection</li>
+                <li>Ordinal data</li>
+                <li>Mixed effects</li>
+                <li>Standards</li>
+                <li>Residual analysis</li>
+                <li>Structural identifiability</li>
+                <li>...</li>
+            </ul>
+        </section>
+
+
+        <section>
+            <img src="img/pypesto_logo_wordmark.svg" width="60%"/><br/>
+            <a href="https://github.com/icb-dcm/pypesto">github.com/icb-dcm/pypesto</a><br/>
+            parameter estimation toolbox<br/><br/>
+            <ul>
+                <li>optimization, profiles, sampling</li>
+                <li>own implementations and interfaces to popular tools</li>
+                <li>high-performance computing parallelization</li>
+                <li>model selection, visualization, ...</li>
+            </ul>
+        </section>
+
+
+        <section>
+            <img src="img/petab_files.svg"/><br/>
+            <a href="https://github.com/petab-dev/petab">github.com/petab-dev/petab</a><br/>
+            data format for specifying parameter estimation problems
+        </section>
+
+
+        <section>
+            <h2>Literature</h2>
+            <img src="img/icon_book_inkscape.svg" height="70px"/>
+            <ul>
+                <li>Fröhlich, Fabian, et al.
+                    "AMICI: High-Performance Sensitivity Analysis for Large
+                    Ordinary Differential Equation Models."
+                    arXiv preprint arXiv:2012.09122 (2020).
+                </li>
+                <li>Fröhlich, Fabian, Carolin Loos, and Jan Hasenauer.
+                    "Scalable inference of ordinary differential equation models
+                    of biochemical processes."
+                    Gene Regulatory Networks (2019): 385-422.
+                </li>
+                <li>Raue, Andreas, et al.
+                    "Lessons learned from quantitative dynamical modeling in
+                    systems biology."
+                    PLoS ONE, 8(9):e74335, 2013.
+                </li>
+                <li>Ballnus, Benjamin, et al.
+                    "Comprehensive benchmarking of Markov chain Monte Carlo
+                    methods for dynamical systems."
+                    BMC Systems Biology, 11(63), 2017.
+                </li>
+            </ul>
+        </section>
+
+
+        <section data-background="#e4003a" data-background-transition="zoom">
+            <h1>Approximate Bayesian Inference</h1>
+        </section>
+
+
+        <section>
+            <h2>Approximate Bayesian inference</h2>
+            <img src="img/bayestheorem_lf.svg"/>
+            <ul>
+                <li class="fragment">
+                    common optimization and sampling methods (e.g. MCMC) require
+                    the (unnormalized) likelihood
+                </li>
+                <li class="fragment">
+                    can happen: numerical
+                    <strong>evaluation infeasible</strong></li>
+                <li class="fragment">
+                    ... but still <strong>possible to simulate data</strong>
+                    $y\sim\pi(y|\theta)$
+                </li>
+            </ul>
+        </section>
+
+
+        <section>
+            <h2>Example: Modeling tumor growth</h2>
+            <small>based on Jagiella et al., Cell Systems 2017</small>
+            <img src="img/dividing_bg_transparent_small.gif" class="stretch"
+                 alt="Tumor gif"/>
+            <ul>
+                <li>cells modeled as interacting stochastic agents, dynamics of
+                    extracellular substances by PDEs
+                </li>
+                <li>simulate up to 10<sup>6</sup> cells</li>
+                <li>10s - 1h for one forward simulation</li>
+                <li>7-18 parameters</li>
+            </ul>
+        </section>
+
+
+        <section data-transition="slide-in fade-out">
+            <table>
+                <tr>
+                    <td><h2>What we tried</h2></td>
+                </tr>
+                <tr>
+                    <td>
+                        <ul>
+                            <li>multi-start local methods
+                                <ul>
+                                    <li>deterministic gradient descent</li>
+                                    <ul>
+                                        <li>Levenberg-Marquardt</li>
+                                        <li>interior-point</li>
+                                        <li>trust-region</li>
+                                    </ul>
+                                    <li>stochastic gradient descent</li>
+                                    <li>Bayesian optimization</li>
+                                </ul>
+                            </li>
+                            <li>global methods
+                                <ul>
+                                    <li>simulated annealing</li>
+                                    <li>&gt; 20 particle methods</li>
+                                    <li>enhanced scatter search</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </table>
+        </section>
+
+
+        <section data-transition="fade-in slide-out">
+            <table>
+                <tr>
+                    <td><h2 style="color: #B71C1C">Failed</h2></td>
+                    <td><h2 style="color: #1B5E20">Worked</h2></td>
+                </tr>
+                <tr>
+                    <td style="vertical-align: top; color: #B71C1C;">
+                        <ul>
+                            <li>multi-start local methods
+                                <ul>
+                                    <li>deterministic gradient descent</li>
+                                    <ul>
+                                        <li>Levenberg-Marquardt</li>
+                                        <li>interior-point</li>
+                                        <li>trust-region</li>
+                                    </ul>
+                                    <li>stochastic gradient descent</li>
+                                    <li>Bayesian optimization</li>
+                                </ul>
+                            </li>
+                            <li>global methods
+                                <ul>
+                                    <li>simulated annealing</li>
+                                    <li>&gt; 20 particle methods</li>
+                                    <li>enhanced scatter search</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </td>
+                    <td style="vertical-align: top; color: #1B5E20;">---</td>
+                </tr>
+            </table>
+        </section>
+
+
+        <section data-transition="zoom-in fade-out">
+            <h2>How to infer parameters for complex stochastic models?</h2>
+        </section>
+
+
+        <section data-background="#e4003a" data-background-transition="zoom">
+            <h1>ABC</h1>
+            Approximate Bayesian Computation
+        </section>
+
+
+        <script>
+            var node = document.getElementById("id_slides");
+            node.innerHTML += "<section data-transition='slide-in fade-out'><h2>Rejection ABC</h2><img src='img/abc_principles-0.svg' alt='ABC principles'/></section>"
+            var i;
+            for (i = 1; i < 8; i++) {
+                node.innerHTML += "<section data-transition='fade'><h2>Rejection ABC</h2><img src='img/abc_principles-" + i + ".svg' alt='ABC principles'/></section>"
+            }
+        </script>
+
+
+        <section>
+            <section>
+                <h2>Rejection ABC</h2>
+                <div style="text-align: left">
+                    With distance $d$, threshold $\varepsilon>0$,
+                    summary statistics $s$:
+                    <div class="r-frame">
+                        until $N$ acceptances:<br/>
+                        <ol>
+                            <li>sample $\theta\sim g(\theta)$</li>
+                            <li>simulate data $y\sim\pi(y|\theta)$</li>
+                            <li>accept $\theta$ if $d(s(y), s(y_\text{obs}))\leq\varepsilon$
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>A "derivation"</h2>
+            </section>
+
+            <section>
+                <h2>Rejection sampling</h2>
+                <div style="text-align: left">
+                    Background: Want to sample from $f$, but can only sample
+                    from
+                    $g \gg f$.
+                    <div class="r-frame">
+                        until $N$ acceptances:<br/>
+                        <ol>
+                            <li>sample $\theta\sim g(\theta)$</li>
+                            <li>accept $\theta$ with probability $\propto
+                                \frac{f(\theta)}{g(\theta)}$
+                            </li>
+                        </ol>
+                    </div>
+                    Accepted $\theta$ are independent samples from $f(\theta)$.<br/>
+                    Let $f=\pi(\theta|y_\text{obs}), g=\pi(\theta) \Rightarrow
+                    \frac{\pi(\theta|y_\text{obs})}{\pi(\theta)} \propto
+                    \pi(y_\text{obs}|\theta)$
+                    <ul>
+                        <li>not available</li>
+                        <li>idea: <strong>circumvent likelihood
+                            evaluation</strong>
+                            by <strong>simulating data</strong> and matching
+                            them
+                            to the observed data
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>Likelihood-free rejection sampling</h2>
+                <div style="text-align: left">
+                    <div class="r-frame">
+                        until $N$ acceptances:<br/>
+                        <ol>
+                            <li>sample $\theta\sim \pi(\theta)$</li>
+                            <li>simulate data $y\sim\pi(y|\theta)$</li>
+                            <li>accept $\theta$ if $y=y_\text{obs}$
+                            </li>
+                        </ol>
+                    </div>
+                    <ul>
+                        <li>Acceptance probability:
+                            $\mathbb{P}[y_\text{obs}]$
+                        </li>
+                        <li>can be small in particular for continuous data</li>
+                        <li>idea: accept simulations that are
+                            <strong>similar</strong> to $y_\text{obs}$
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>Rejection ABC</h2>
+                <div style="text-align: left">
+                    With distance $d$, threshold $\varepsilon>0$:
+                    <div class="r-frame">
+                        until $N$ acceptances:<br/>
+                        <ol>
+                            <li>sample $\theta\sim \pi(\theta)$</li>
+                            <li>simulate data $y\sim\pi(y|\theta)$</li>
+                            <li>accept $\theta$ if $d(y, y_\text{obs})\leq\varepsilon$
+                            </li>
+                        </ol>
+                    </div>
+                    <ul>
+                        <li><strong>curse of dimensionality:</strong>
+                            if the data are too high-dimensional, the
+                            probability
+                            of simulating similar data sets is small
+                        </li>
+                        <li>idea: create an informative lower-dimensional
+                            representation via <strong>summary statistics
+                            </strong></li>
+                        <li>ideally minimal sufficient statistics</li>
+                    </ul>
+                </div>
+            </section>
+        </section>
+
+
+        <section>
+            <h2>Toy example</h2>
+            <div style="text-align: left">
+                $y\sim\mathcal{N}(2(\theta-2)\theta(\theta+2), 1+\theta^2)$,
+                $y_\text{obs}=2$<br/>
+                $\pi(\theta) = U[-3,3]$<br/>
+                $d=|{\cdot}|_1$<br/>
+                $N=1000$ acceptances
+                <div class="r-stack">
+                    <img src="img/wino_1.png"/>
+                    <img class="fragment" src="img/wino_2.png"/>
+                    <img class="fragment" src="img/wino_3.png"/>
+                    <img class="fragment" src="img/wino_4.png"/>
+                    <img class="fragment" src="img/wino_5.png"/>
+                </div>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Approximate Bayesian Posterior</h2>
+            <p>
+                We want:
+                \[\pi(\theta|y_\text{obs}) \propto
+                \color{red}{p(y_\text{obs}|\theta)}\pi(\theta)\]
+            </p>
+            <p class="fragment">
+                We get:
+                \[\pi_{ABC}(\theta|s(y_\text{obs})) \propto \color{red}{\int
+                I(\{d(s(y), s(y_\text{obs})) \leq
+                \varepsilon\})p(y|\theta)\operatorname{dy}}\pi(\theta) \approx
+                \frac{1}{N} \sum_{i=1}^N\delta_{\theta^{(i)}}(\theta)\]
+                with distance $d$, threshold $\varepsilon>0$, and summary
+                statistics $s$
+            </p>
+        </section>
+
+
+        <section>
+            <h2>Sources of approximation errors in ABC</h2>
+            <ul>
+                <li>model error (as for every model of reality)</li>
+                <li>Monte-Carlo error (as for sampling in general)</li>
+                <li>summary statistics</li>
+                <li>epsilon threshold</li>
+            </ul>
+            <div class="fragment">
+                <blockquote>
+                    Far better an approximate answer to the right question,
+                    which
+                    is often vague, than an exact answer to the wrong question,
+                    which can always be made precise.
+                </blockquote>
+                <div style="text-align: right"><small>John Tukey 1962</small>
+                </div>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>Efficient samplers</h2>
+            <ul>
+                <li>Rejection ABC, the basic ABC algorithm, can be
+                    <strong>inefficient</strong> due to repeatedly sampling
+                    from the prior
+                </li>
+                <li>smaller $\varepsilon$ leads to lower acceptance rates</li>
+                <li>many (likelihood-based) algorithms like IS, MCMC, SMC, SA
+                    have <strong>ABC-fied</strong> versions
+                </li>
+            </ul>
+        </section>
+
+
+        <script>
+            var node = document.getElementById("id_slides");
+            node.innerHTML += "<section data-transition='slide-in fade-out'><h2>ABC-SMC</h2>combine with a sequential Monte-Carlo scheme<img src='img/abc_principles-8.svg' alt='ABC-SMC principles'/><small>similar to Toni et al., J. Royal Society 2009</small></section>"
+            node.innerHTML += "<section data-transition='fade-in slide-out'><h2>ABC-SMC</h2>combine with a sequential Monte-Carlo scheme<img src='img/abc_principles-9.svg' alt='ABC-SMC principles'/><small>similar to Toni et al., J. Royal Society 2009</small></section>"
+        </script>
+
+
+        <section>
+            <img src="img/abc_smc_better.svg"/>
+        </section>
+
+
+        <section data-background="#e4003a" data-background-transition="zoom">
+            <img src="img/logo_white.svg"
+                 style="background: #ffffff00; border: none"
+                 alt="pyABC logo white"/><br/>
+            <a href="https://github.com/icb-dcm/pyabc" style="color: white">github.com/icb-dcm/pyabc</a><br/>
+            <small>Klinger et al., Bioinformatics 2018</small>
+        </section>
+
+
+        <section>
+            <img src="img/logo.svg" alt="pyABC logo black"/>
+            <img src="img/points_extended.svg" style="width: 90%;"
+                 alt="Points"/>
+        </section>
+
+
+        <section>
+            <h2>Easy to use</h2>
+            <pre>
+                <code class="python" data-trim data-line-numbers>
+# define problem
+abc = pyabc.ABCSMC(model, prior, distance)
+
+# pass data
+abc.new(database, observation)
+
+# run it
+abc.run()
+                </code>
+            </pre>
+        </section>
+
+
+        <section>
+            <h2>Parallel backends: 1 to 1,000s cores</h2>
+            <img src="img/parallelization.svg" style="width: 40%"
+                 alt="Parallelization backends"/>
+        </section>
+
+
+        <section>
+            <h2>Parallelization strategies</h2>
+            <small>Klinger et al., CMSB Proceedings 2017</small>
+            <img src="img/strategies_illustration_small.svg"
+                 alt="Parallelization strategies"/>
+        </section>
+
+
+        <section>
+            <h1>Example: Tumor growth model</h1>
+            <small>based on Jagiella et al., Cell Systems 2017</small>
+        </section>
+
+
+        <section>
+            <h2>Define summary statistics</h2>
+            <img src="img/tumor_sumstat.svg" class="stretch"
+                 alt="Tumor summary statistics"/>
+        </section>
+
+
+        <section data-background="img/server_white.svg">
+            <span style="font-weight: bold; font-size: 1.2em;">
+            <ul>
+                <li>400 cores</li>
+                <li>2 days</li>
+                <li>1.8e6 simulations</li>
+            </ul>
+            </span>
+        </section>
+
+
+        <section data-transition="slide-in fade-out">
+            <img src="img/tumor_kdes_small.gif" class="stretch"
+                 alt="Tumor KDEs"/>
+            <div class="conclusion" style="background-color: #ffffff">
+                ABC worked where many other methods had failed.
+            </div>
+        </section>
+
+
+        <section data-transition="fade-in slide-out">
+            <img src="img/dflt_37.png" class="stretch" alt="Tumor final KDE"/>
+            <div class="conclusion">
+                ABC worked where many other methods had failed.
+            </div>
+        </section>
+
+
+        <section>
+            <img class="r-stretch" src="img/tumor_integration.svg"/><br/>
+            Uncertainty-aware predictions, easy data integration.
+        </section>
+
+
+        <section>
+            <section>
+                <h1>Algorithmic details</h1>
+            </section>
+
+
+            <section>
+                <h2>Adaptive population sizes</h2>
+                <small>Klinger et al., CMSB Proceedings 2017</small>
+                <img src="img/adaptive_population_size_illustrations.svg"
+                     alt="Adaptive population sizes"/>
+                idea: adapt population size trying to match a target accuracy
+            </section>
+
+
+            <section>
+                <h2>Self-tuning distance functions</h2>
+                <small>based on Prangle, Bayesian Analysis 2015</small><br/>
+                <img src="img/adaptive_distances.svg" class="stretch"
+                     alt="Adaptive distances"/>
+            </section>
+
+
+            <section>
+                <h2>Measurement noise</h2>
+                <small>Schälte et al., Bioinformatics 2020</small><br/>
+                How to efficiently account for measurement noise in ABC?
+                <img src="img/concept.svg" class="stretch"
+                     alt="Measurement noise methods"/>
+            </section>
+
+
+            <section>
+                <h2>Further challenges</h2>
+                <ul>
+                    <li>Summary statistics calculation</li>
+                    <li>Epsilon thresholds</li>
+                    <li>Model selection</li>
+                    <li>Early rejection</li>
+                </ul>
+            </section>
+
+
+            <section>
+                <h2>And ...</h2>
+                <img src="img/and.svg" alt="And"/>
+                <h2>...</h2>
+            </section>
+        </section>
+
+
+        <section>
+            <img src="img/logo_fmc_long.svg.png" height="70px"/><br/>
+            Joint initiative to perform inference for multi-cellular models
+            <img src="img/morpheus_gui.png" class="stretch" alt="Morpheus"/>
+            <br/>
+            <small>Morpheus toolbox: Staruß et al., Bioinformatics 2014</small>
+        </section>
+
+
+        <section>
+            <h2>Literature</h2>
+            <img src="img/icon_book_inkscape.svg" height="70px"/>
+            <ul>
+                <li>Sisson, Scott A., Yanan Fan, and Mark Beaumont, eds.
+                    "Handbook of approximate Bayesian computation."
+                    CRC Press, 2018.
+                </li>
+                <li>Beaumont, Mark A. "Approximate Bayesian computation in
+                    evolution and ecology." Annual review of ecology,
+                    evolution, and systematics 41 (2010): 379-406.
+                </li>
+                <li>Martin, Gael M., David T. Frazier, and Christian P.
+                    Robert. "Computing Bayes: Bayesian Computation from
+                    1763 to the 21st Century." arXiv preprint
+                    arXiv:2004.06425 (2020).
+                </li>
+            </ul>
+        </section>
+
+
+        <section data-background="img/group.jpg">
+            <div style="background-color: #ffffff99; text-align: left; padding: 30px;">
+                <h3>Acknowledgments</h3>
+                Thanks to: Jan Hasenauer, Emad
+                Alamoudi, Jakob Vanhoefer, the whole lab, ...
+                <img src="img/ack.png"/>
+            </div>
+        </section>
+
+
+        <section data-background-image="img/questions.jpg"
+                 data-background-opacity="0.3">
+            <h1>Thanks! Questions?</h1>
+        </section>
+
+    </div>
+</div>
+
+
+<script src="reveal.js/dist/reveal.js"></script>
+<script src="reveal.js/plugin/zoom/zoom.js"></script>
+<script src="reveal.js/plugin/notes/notes.js"></script>
+<script src="reveal.js/plugin/markdown/markdown.js"></script>
+<script src="reveal.js/plugin/highlight/highlight.js"></script>
+<script src="reveal.js/plugin/math/math.js"></script>
+<script>
+// More info about initialization & config:
+// - https://revealjs.com/initialization/
+// - https://revealjs.com/config/
+Reveal.initialize({
+    controls: true,
+    progress: true,
+    center: true,
+    hash: true,
+
+    // Learn about plugins: https://revealjs.com/plugins/
+    plugins: [ RevealMarkdown, RevealHighlight, RevealNotes,
+               RevealMath, RevealZoom ]
+});
+Reveal.configure({ slideNumber: 'c/t' });
+Reveal.configure({ showSlideNumber: 'all' });
+</script>
+</body>
+</html>
